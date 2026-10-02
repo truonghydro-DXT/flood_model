@@ -1,0 +1,7 @@
+﻿id,name,kind,reach,lon,lat,station_km,xs_id,file,value_col,unit
+P_basin,Mưa lưu vực,P,basin,105.805303,21.011713,,,rainfall_runoff_output/demo_rainfall.csv,rainfall_mm,mm
+PET_basin,Bốc hơi tiềm năng,PET,basin,105.805303,21.011713,,,rainfall_runoff_output/demo_rainfall.csv,pet_mm,mm
+Q_obs,Q quan trắc TANK,Q,basin,105.692218,21.142659,0.0,1,rainfall_runoff_output/demo_flow.csv,q_m3/s,m3/s
+Q_us,Q thượng lưu lòng chính,Q,main,105.692218,21.142659,0.0,1,rainfall_runoff_output/mike_nam_result.csv,q_m3s,m3/s
+H_ds,H hạ lưu lòng chính,H,main,105.918388,20.880768,52.9155,107,saint_venant_output/demo_downstream_stage.csv,h_m,m
+H_na1,H hạ lưu nhánh thoát,H,trib,105.87916,21.070523,4.3939,10,saint_venant_output/demo_downstream_stage.csv,h_na1_m,m

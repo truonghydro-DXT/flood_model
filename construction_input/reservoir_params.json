@@ -1,0 +1,72 @@
+{
+  "config": {
+    "name": "Ho thuong luu",
+    "operation_set": "flood_control",
+    "bed_m": -6.78,
+    "initial_level_m": 10.0,
+    "storage_area_m2": 96997000.0,
+    "min_level_m": 3.0,
+    "flood_reception_level_m": 9.0,
+    "conservation_level_m": 11.0,
+    "flood_control_level_m": 14.0,
+    "max_level_m": 15.0,
+    "normal_release_m3s": 120.0,
+    "minimum_release_m3s": 60.0,
+    "flood_release_m3s": 600.0,
+    "outlet_capacity_m3s": 200.0,
+    "spillway_crest_m": 10.5,
+    "spillway_width_m": 15.0,
+    "spillway_coefficient": 1.838,
+    "dam_crest_m": 12.0,
+    "dam_width_m": 120.0,
+    "outlet_sill_m": 6.0,
+    "gate_left_offset_m": 600.0,
+    "gate_spacing_m": 0.5,
+    "unit_count": 2.0,
+    "unit_rated_mw": 0.0,
+    "unit_qmax_m3s": 0.0,
+    "installed_mw": 22.0,
+    "evaporation_mm_day": 0.0,
+    "tailwater_m": 0.0,
+    "turbine_efficiency": 0.92,
+    "has_file": "",
+    "spillway_control": "controlled",
+    "spillway_opening_m": 1.2,
+    "spillway_orifice_coefficient": 0.6,
+    "generation_schedule": "peak",
+    "generation_hours": ""
+  },
+  "spillway_gates_m": [
+    5.0,
+    5.0,
+    5.0
+  ],
+  "spillway_gates": [
+    {
+      "width_m": 5.0,
+      "control": "controlled",
+      "opening_m": 1.2
+    },
+    {
+      "width_m": 5.0,
+      "control": "controlled",
+      "opening_m": 1.2
+    },
+    {
+      "width_m": 5.0,
+      "control": "controlled",
+      "opening_m": 1.2
+    }
+  ],
+  "turbine_units": [
+    {
+      "rated_mw": 10.0,
+      "qmax_m3s": 80.0
+    },
+    {
+      "rated_mw": 12.0,
+      "qmax_m3s": 120.0
+    }
+  ],
+  "start_date": "2024-07-01"
+}

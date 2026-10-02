@@ -1,0 +1,10 @@
+numpy>=1.24
+rasterio>=1.3
+flask>=2.3
+pillow>=10.0
+matplotlib>=3.7
+scipy>=1.11
+opencv-python-headless>=4.8
+certifi>=2024.0
+psycopg2-binary>=2.9
+python-dotenv>=1.0

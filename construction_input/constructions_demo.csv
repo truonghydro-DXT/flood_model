@@ -1,0 +1,8 @@
+id,name,type,reach,station_km,xs_id,lon,lat,crest_m,width_m,length_m,height_m,gate_opening_m,invert_m,cd,submerged_exp,formula,placement,valve,q_max_m3s,q_min_m3s,storage_area_m2,initial_level_m,dam_crest_m,outlet_sill_m,spillway_crest_m,gate_left_offset_m,gate_spacing_m,outlet_gate_count,outlet_gate_widths_m,control,upstream_reach,downstream_reach,file,value_col,unit,note
+DK_L,De ta ngan,dike,main,12,,,,14.5,2500,2500,,,,1.838,1.5,villemonte,lateral,both,,0,,,,,,,,,,free,,,,,,Tran bai ta ngan — lateral q_lat
+DK_R,De huu ngan,dike,main,12,,,,14.8,2200,2200,,,,1.838,1.5,villemonte,lateral,both,,0,,,,,,,,,,free,,,,,,Tran bai huu ngan — lateral q_lat
+WR_1,Dap tran chinh,weir,main,28.5,,,,11.2,80,,,,,1.838,1.5,villemonte,inline,both,,0,,,,,,,,,,free,,,,,,Weir Q-point; tu do
+GT_1,Cong dieu tiet,gate,main,28.6,,,,,12,,4,1.5,9.5,0.63,1.5,villemonte,inline,both,,0,,,,,,,,,,controlled,,,construction_input/gate_opening_GT1.csv,gate_opening_m,m,Do mo cua theo gio
+RS_1,Ho thuong luu,reservoir,main,0.5,,,,18,40,,,,8,1.838,1.5,villemonte,inline,positive,1200,0,2500000,12,,,,,,,,controlled,,,construction_input/reservoir_level_RS1.csv,level_m,m,Chuoi muc nuoc tham chieu
+CV_1,Cong hop nhanh,culvert,trib_1,1.2,,,,,3,35,2.5,,7.8,0.6,1.5,villemonte,inline,both,,0,,,,,,,,,,free,,,,,,
+PM_1,Tram bom tieu,pump,main,15,,,,,,,,,,,,villemonte,lateral,both,40,0,,,,,,,,,,controlled,,,construction_input/pump_Q_PM1.csv,q_m3s,m3/s,Q bom theo gio

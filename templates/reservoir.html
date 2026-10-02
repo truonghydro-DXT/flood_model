@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HEC-ResSim · Hồ chứa</title>
+  {% set rs_static = reservoir_static_endpoint|default('static') %}
+  <link rel="stylesheet" href="{{ url_for(rs_static, filename='reservoir.css') }}?v=43">
+</head>
+<body>
+  <main class="app-shell" data-api-url="{{ reservoir_api_url }}">
+    <header class="topbar">
+      <a class="brand" href="/">FLOOD MODEL <span>/ RESERVOIR LAB</span></a>
+      <div class="topbar-status"><i></i> RESERVOIR workflow <b>ONLINE</b></div>
+    </header>
+
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Reservoir operations · hourly routing</p>
+        <h1>Vận hành hồ chứa</h1>
+        <h2 class="hero-copy">Mô phỏng cân bằng nước, vùng vận hành và xả tràn.</h2>
+      </div>
+      <div class="hero-mark" aria-hidden="true"><span>RS</span><strong>01</strong></div>
+    </section>
+
+    <section class="workspace">
+      <aside class="control-rail">
+        <div class="rail-scroll">
+        <div class="section-title"><span>01</span><h2>Thông số hồ</h2></div>
+        <div class="field-grid">
+          <label>Hồ chứa<input data-config="name" value="RS1" type="text"></label>
+          <label>Kịch bản vận hành<select data-config="operation_set"><option value="normal">Bình thường</option><option value="flood_control">Phòng lũ (cắt lũ)</option><option value="hydropower">Phát điện</option><option value="water_supply">Cấp nước</option><option value="environmental">Dòng chảy môi trường</option><option value="flood_power">Xả lũ kết hợp phát điện</option></select></label>
+          <label>H ban đầu<input data-config="initial_level_m" value="12" type="number" step="0.01"></label>
+          <label>Cao trình đáy<input data-config="bed_m" value="8" type="number" step="0.01" readonly title="Tự động lấy H thấp nhất trong quan hệ H–A–S"></label>
+          <label>Diện tích hồ A (km²)<input data-config="storage_area_m2" value="2.5" type="number" step="0.001" min="0"></label>
+        </div>
+        <div class="section-title compact"><span>02</span><h2>Đường vận hành</h2></div>
+        <div class="field-grid three">
+          <label data-label-for="min_level_m">Min<input data-config="min_level_m" value="9" type="number" step="0.01"></label>
+          <label data-label-for="flood_reception_level_m">H đón lũ<input data-config="flood_reception_level_m" value="10.5" type="number" step="0.01"></label>
+          <label data-label-for="conservation_level_m">Bảo đảm<input data-config="conservation_level_m" value="12" type="number" step="0.01"></label>
+          <label data-label-for="flood_control_level_m">Đón lũ<input data-config="flood_control_level_m" value="14" type="number" step="0.01"></label>
+          <label data-label-for="max_level_m">Max<input data-config="max_level_m" value="18" type="number" step="0.01"></label>
+          <label>Đáy cửa xả<input data-config="outlet_sill_m" value="3" type="number" step="0.01"></label>
+          <label>Đỉnh xả tràn<input data-config="spillway_crest_m" value="17" type="number" step="0.01"></label>
+          <label>H đỉnh đập<input data-config="dam_crest_m" value="12" type="number" step="0.01"></label>
+          <label>Bề rộng đập<input data-config="dam_width_m" value="120" type="number" step="0.01" min="0"></label>
+          <label>Cách mép trái<input data-config="gate_left_offset_m" value="0" type="number" step="0.01" min="0"></label>
+          <label>Khoảng cách từng cửa<input data-config="gate_spacing_m" value="0" type="number" step="0.01" min="0"></label>
+          <label>Số cửa xả<input id="spillwayGateCount" type="number" min="0" step="1" value="2" title="0 = đóng hết cửa xả"></label>
+        </div>
+        <input type="hidden" data-config="spillway_width_m" id="spillwayWidthTotal" value="40">
+        <div class="gate-sheet">
+          <div class="inflow-sheet-head">
+            <span>Độ rộng mỗi cửa</span>
+            <span>Rộng tràn = <b id="spillwayWidthLabel">120</b> m</span>
+            <button id="addSpillwayGateBtn" type="button">+ Cửa xả</button>
+          </div>
+          <div class="inflow-sheet-scroll gate-sheet-scroll">
+            <table aria-label="Cửa xả tràn">
+              <thead><tr><th>Cửa</th><th>Bề rộng (m)</th><th>Chế độ tràn</th><th>Độ mở (m)</th><th></th></tr></thead>
+              <tbody id="spillwayGateBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="section-title compact"><span>03</span><h2>Khả năng xả</h2><button id="generationScheduleBtn" class="schedule-open" type="button">Lịch phát điện</button></div>
+        <div class="field-grid three">
+          <label>Số tổ máy<input data-config="unit_count" id="turbineUnitCount" value="0" type="number" min="0" step="1"></label>
+        </div>
+        <div class="gate-sheet unit-sheet">
+          <div class="inflow-sheet-head">
+            <span>Từng tổ máy</span>
+            <span>P = <b id="turbinePowerLabel">0</b> MW</span>
+            <button id="addTurbineUnitBtn" type="button">+ Tổ máy</button>
+          </div>
+          <div class="inflow-sheet-scroll gate-sheet-scroll">
+            <table aria-label="Công suất và Q max từng tổ máy">
+              <thead><tr><th>Tổ</th><th title="Công suất định mức">MW</th><th title="Lưu lượng lớn nhất">Q max</th><th></th></tr></thead>
+              <tbody id="turbineUnitBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="field-grid three">
+          <label data-label-for="normal_release_m3s">Xả thường<input data-config="normal_release_m3s" value="120" type="number" step="1"></label>
+          <label data-label-for="minimum_release_m3s">Xả tối thiểu<input data-config="minimum_release_m3s" value="60" type="number" step="1"></label>
+          <label data-label-for="flood_release_m3s">Q xả tại H đón lũ<input data-config="flood_release_m3s" value="600" type="number" step="1"></label>
+          <label data-label-for="outlet_capacity_m3s">Khả năng xả lớn nhất<input data-config="outlet_capacity_m3s" value="1200" type="number" step="1"></label>
+          <input type="hidden" data-config="generation_schedule" id="generationSchedule" value="peak">
+          <input type="hidden" data-config="generation_hours" id="generationHours" value="">
+        </div>
+        <div id="inflowPanel">
+          <div class="section-title compact"><span>04</span><h2>Hydrograph đầu vào</h2></div>
+          <div class="inflow-sheet">
+            <div class="inflow-sheet-head">
+              <label class="start-date-field">Ngày bắt đầu<input type="date" id="operationStartDate" value="2024-07-01"></label>
+              <button id="addInflowRowBtn" type="button">+ Hàng</button>
+            </div>
+            <div class="inflow-sheet-scroll">
+              <table aria-label="Hydrograph đầu vào">
+                <thead><tr><th>#</th><th>Giờ</th><th>Q vào (m³/s)</th><th></th></tr></thead>
+                <tbody id="inflowBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        </div>
+          <div class="rail-actions">
+            <button class="ghost" id="hasDemBtn" type="button">H–A–S từ DEM</button>
+            <button class="ghost" id="namBtn" type="button">Nạp Q từ NAM</button>
+            <button class="ghost" id="saveParamsBtn" type="button">Lưu thông số</button>
+            <button class="run" id="runBtn" type="button"><span>Mô phỏng</span><b>→</b></button>
+          </div>
+          <p class="error" id="errorBox" hidden></p>
+      </aside>
+
+      <section class="results">
+        <div class="result-head"><div><p class="eyebrow">Simulation output</p><h2>Diễn biến hồ chứa</h2></div><span class="timestamp" id="runStatus">Chưa chạy mô phỏng</span></div>
+        <div class="metric-row">
+          <article class="metric primary"><span>Mực nước lớn nhất</span><strong id="peakLevel">—</strong><small id="peakHour">—</small></article>
+          <article class="metric"><span>Mực nước hiện tại</span><strong id="currentLevel">—</strong><small id="currentLevelNote">—</small></article>
+          <article class="metric"><span>Dung tích hiện tại</span><strong id="currentStorage">—</strong><small>10⁶ m³</small></article>
+          <article class="metric"><span>Xả lớn nhất</span><strong id="peakRelease">—</strong><small>m³/s</small></article>
+          <article class="metric"><span id="powerMetricLabel">Xả tràn lớn nhất</span><strong id="peakSpill">—</strong><small id="powerMetricUnit">m³/s</small></article>
+          <article class="metric"><span>Vùng cuối kỳ</span><strong class="zone-value" id="finalZone">—</strong><small id="stepCount">0 bước tính</small></article>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><div><h3>Mực nước và lưu lượng</h3></div><div class="legend" id="chartLegend"><button type="button" class="legend-item" data-series="level" aria-pressed="true"><i class="level-line"></i> Mực nước (m)</button><button type="button" class="legend-item" data-series="hs" aria-pressed="true"><i class="hs-line"></i> Hs chết</button><button type="button" class="legend-item" data-series="hbt" aria-pressed="true"><i class="hbt-line"></i> Hbt dâng BT</button><button type="button" class="legend-item" data-series="hdl" aria-pressed="true"><i class="hdl-line"></i> Hđl đón lũ</button><button type="button" class="legend-item" data-series="hp" aria-pressed="true"><i class="hp-line"></i> Hp phòng lũ</button><button type="button" class="legend-item" data-series="inflow" aria-pressed="true"><i class="flow-line"></i> Q vào (m³/s)</button><button type="button" class="legend-item" data-series="total" aria-pressed="true"><i class="total-line"></i> Tổng xả (m³/s)</button><button type="button" class="legend-item" data-series="dam" aria-pressed="true"><i class="release-line"></i> Xả qua đập (m³/s)</button><button type="button" class="legend-item" data-series="turbine" aria-pressed="true"><i class="turbine-line"></i> Xả qua tuabin (m³/s)</button><button type="button" class="legend-item" data-series="spill" aria-pressed="true"><i class="spill-line"></i> Xả qua tràn (m³/s)</button><button type="button" class="legend-item" data-series="qmt" aria-pressed="true" hidden><i class="qmt-line"></i> Qmt (m³/s)</button></div></div>
+          <div class="chart-wrap"><canvas id="resultChart" aria-label="Biểu đồ mực nước và lưu lượng"></canvas></div>
+        </div>
+        <div class="has-split">
+          <div class="table-card has-card">
+            <div class="table-head">
+              <h3>Bảng H–A–S từ DEM</h3>
+              <span id="hasMeta">Chưa lập bảng</span>
+            </div>
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>H (m)</th><th>A (km²)</th><th>S (10⁶ m³)</th></tr></thead>
+                <tbody id="hasBody"><tr><td colspan="3" class="empty">Lập H–A–S từ DEM Sông Hồng để nội suy dung tích</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="table-card has-chart-card">
+            <div class="table-head">
+              <h3>Biểu đồ quan hệ H–A–S</h3>
+              <div class="legend"><span><i class="has-a-line"></i> A (km²)</span><span><i class="has-s-line"></i> S (10⁶ m³)</span></div>
+            </div>
+            <div class="has-chart-wrap"><canvas id="hasChart" aria-label="Biểu đồ quan hệ H–A–S"></canvas><div id="hasTip" class="has-tip" hidden></div></div>
+          </div>
+        </div>
+        <div id="operationCard" class="table-card"><div class="table-head"><h3>Bảng điều hành</h3><div class="table-head-actions"><span id="tableMeta">—</span><button type="button" class="export-btn" id="exportExcelBtn" disabled>Xuất Excel</button></div></div><div class="table-scroll"><table><thead><tr><th>Giờ</th><th>Ngày tháng năm</th><th>Inflow</th><th>Mực nước</th><th>S (10⁶ m³)</th><th>Xả qua đập</th><th>Xả qua tuabin</th><th>Tràn</th><th>Tổng xả</th><th>P (MW)</th><th>Vùng</th></tr></thead><tbody id="resultBody"><tr><td colspan="11" class="empty">Mô phỏng để xem kết quả</td></tr></tbody></table></div></div>
+      </section>
+    </section>
+  </main>
+  <div id="scheduleDialog" class="schedule-dialog" hidden>
+    <div class="schedule-card" role="dialog" aria-modal="true" aria-labelledby="scheduleTitle">
+      <p class="eyebrow">Khả năng xả</p>
+      <h3 id="scheduleTitle">Lịch phát điện 24 giờ</h3>
+      <div class="schedule-modes">
+        <label><input type="radio" name="scheduleMode" value="peak"> Giờ cao điểm</label>
+        <label><input type="radio" name="scheduleMode" value="custom"> Tùy chọn</label>
+      </div>
+      <p class="schedule-note" id="scheduleNote"></p>
+      <div id="scheduleHours" class="schedule-hours"></div>
+      <div class="schedule-actions">
+        <button type="button" id="scheduleCancel" class="schedule-cancel">Hủy</button>
+        <button type="button" id="scheduleApply" class="schedule-apply">Áp dụng</button>
+      </div>
+    </div>
+  </div>
+  <script src="{{ url_for(rs_static, filename='reservoir.js') }}?v=76"></script>
+</body>
+</html>

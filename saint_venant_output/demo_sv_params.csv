@@ -1,0 +1,13 @@
+﻿param,value
+xs_spacing_m,500.0000
+dt_hours,1
+n_mains,1
+n_tribs,1
+cfl,1
+dt_hydro_max_s,60.0000
+theta,1
+n_picard,3
+convective,0.15
+manning_blend,0.25
+q_relax,0.35
+water_source,saint-venant-1d

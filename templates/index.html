@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEM 3D - Flood model</title>
+  {% set fm_static = flood_static_endpoint|default('static') %}
+  <link rel="stylesheet" href="{{ url_for(fm_static, filename='vendors/leaflet/leaflet.css') }}">
+  <link rel="stylesheet" href="{{ url_for(fm_static, filename='app.css') }}?v=49">
+  <link rel="stylesheet" href="{{ url_for(fm_static, filename='flood-3d.css') }}">
+</head>
+<body class="mode-3d" data-flood-base="{{ flood_base or '' }}" data-flood-home-2d="{{ home_2d_url or '' }}" data-hydro1d-force-mike="{{ '1' if hydro1d_force_mike else '' }}">
+  <header class="fm-bar">
+    <div class="fm-brand">Mô hình ngập lụt</div>
+    <div class="fm-actions">
+      <button type="button" id="view3dBtn" class="is-active">DEM 3D</button>
+      <button type="button" id="view2dBtn">Bản đồ 2D</button>
+      <span class="fm-sep" aria-hidden="true"></span>
+      <!-- <button type="button" id="hydroRrRunBtn">Model RR</button> -->
+      <button type="button" id="hydroNamRunBtn">Model NAM</button>
+      <button type="button" id="hydro1dRunBtn">Model 1D</button>
+      <button type="button" id="boundaryStationsBtn">Biên đầu vào</button>
+      <button type="button" id="constructionsBtn">Công trình</button>
+      <button type="button" id="coordPickBtn">Tọa độ</button>
+      <button type="button" id="measureLengthBtn">Đo độ  dài</button>
+      <button type="button" id="flow3dDrawBtn">Vẽ mặt cắt ngang</button>
+      <button type="button" id="flow3dThalwegBtn">Mặt cắt dọc sông</button>
+      <button type="button" id="flow3dClearBtn">Xóa mặt cắt</button>
+      <button type="button" id="flowRunBtn">Dòng chảy 3D</button>
+      <span class="fm-sep" aria-hidden="true"></span>
+      <button type="button" id="flood3dRunBtn">Mô phỏng ngập lụt</button>
+      <button type="button" id="flood3dVideoBtn">Tạo video</button>
+      <button type="button" id="flood3dPlayBtn">Phát</button>
+      <button type="button" id="flood3dClearBtn">Xóa ngập</button>
+      <div class="fm-time">
+        <input id="flood3dTime" type="range" min="0" max="500" value="0" />
+        <span id="flood3dTimeLabel">Giờ —</span>
+      </div>
+    </div>
+    <!-- <div class="fm-time">
+      <input id="flood3dTime" type="range" min="0" max="167" value="0" />
+      <span id="flood3dTimeLabel">Giờ —</span>
+    </div> -->
+  </header>
+
+  <div id="map" style="display:none"></div>
+  <div id="view3d"></div>
+
+  <aside class="fm-side">
+    <div id="dem3dControls">
+      <label class="dem3d-exag-label">
+        Độ phóng cao độ
+        <input id="demExaggeration" type="range" min="0.005" max="0.3" step="0.001" value="0.02" />
+      </label>
+      <label class="dem3d-layer-toggle">
+        <input id="demContourToggle" type="checkbox" autocomplete="off" />
+        Đường đồng mức (contour)
+      </label>
+      <label class="dem3d-layer-toggle">
+        <input id="demXsToggle" type="checkbox" autocomplete="off" />
+        Mặt cắt (XS)
+      </label>
+      <label class="dem3d-layer-toggle">
+        <input id="demStructuresToggle" type="checkbox" autocomplete="off" />
+        Công trình
+      </label>
+    </div>
+    <div id="dem3dHint" class="dem3d-hint">
+      {% if not has_1d %}Chưa có kết quả 1D. Chạy Model RR rồi Model 1D.{% else %}Bật Mặt cắt (XS) rồi click một mặt cắt để xem profile và hệ số nhám n.{% endif %}
+    </div>
+    <div id="flood3dStats" class="fm-stats"></div>
+    <div id="flood3dLegend" class="flood3d-legend" hidden>
+      <div class="flood3d-legend-title">Độ sâu ngập</div>
+      <div class="flood3d-legend-rows">
+        <div class="flood3d-legend-row"><span class="flood3d-legend-swatch" style="background:#c6dbef"></span><span>&lt; 0,5 m</span></div>
+        <div class="flood3d-legend-row"><span class="flood3d-legend-swatch" style="background:#6baed6"></span><span>0,5 – 1 m</span></div>
+        <div class="flood3d-legend-row"><span class="flood3d-legend-swatch" style="background:#2171b5"></span><span>1 – 2 m</span></div>
+        <div class="flood3d-legend-row"><span class="flood3d-legend-swatch" style="background:#084594"></span><span>2 – 4 m</span></div>
+        <div class="flood3d-legend-row"><span class="flood3d-legend-swatch" style="background:#041c3a"></span><span>&gt; 4 m</span></div>
+      </div>
+    </div>
+    <div class="dem3d-attrib">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div>
+  </aside>
+
+  <div id="dem3dLegend" class="dem3d-legend" hidden>
+    <div class="dem3d-legend-title">Cao độ</div>
+    <div class="dem3d-legend-body">
+      <div class="dem3d-legend-bar" aria-hidden="true"></div>
+      <div class="dem3d-legend-labels">
+        <span id="dem3dLegendMax">—</span>
+        <span id="dem3dLegendMid">—</span>
+        <span id="dem3dLegendMin">—</span>
+      </div>
+    </div>
+    <div class="dem3d-legend-hint">Thấp → cao</div>
+  </div>
+
+  <div id="coordPickCard" class="coord-pick-card" hidden>
+    <div class="coord-pick-head">
+      <span>Tọa độ</span>
+      <button type="button" id="coordPickCloseBtn" class="flow3d-close-btn" title="Đóng điểm" aria-label="Đóng điểm">×</button>
+    </div>
+    <dl class="coord-pick-dl">
+      <div><dt>Kinh độ</dt><dd id="coordPickLon">—</dd></div>
+      <div><dt>Vĩ độ</dt><dd id="coordPickLat">—</dd></div>
+      <div><dt>Cao độ</dt><dd id="coordPickElev">—</dd></div>
+      <div class="coord-pick-place"><dt>Địa danh</dt><dd id="coordPickPlace">Click một điểm trên bản đồ</dd></div>
+    </dl>
+    <button type="button" id="coordPickCopyBtn" class="coord-pick-copy">Sao chép kinh độ, vĩ độ</button>
+  </div>
+
+  <div id="measureLengthCard" class="coord-pick-card measure-length-card" hidden>
+    <div class="coord-pick-head">
+      <span>Đo chiều dài</span>
+      <button type="button" id="measureLengthCloseBtn" class="flow3d-close-btn" title="Đóng" aria-label="Đóng">×</button>
+    </div>
+    <dl class="coord-pick-dl">
+      <div><dt>Số điểm</dt><dd id="measureLengthCount">0</dd></div>
+      <div><dt>Mặt bằng</dt><dd id="measureLength2d">—</dd></div>
+      <div><dt>Theo địa hình</dt><dd id="measureLength3d">—</dd></div>
+      <div><dt>Đoạn cuối</dt><dd id="measureLengthSeg">—</dd></div>
+    </dl>
+    <div class="measure-length-actions">
+      <button type="button" id="measureLengthUndoBtn" class="coord-pick-copy">Xóa điểm cuối</button>
+      <button type="button" id="measureLengthClearBtn" class="coord-pick-copy">Xóa hết</button>
+    </div>
+    <p class="measure-length-hint">Click thêm điểm · Right-click xóa điểm cuối · Esc đóng</p>
+  </div>
+
+  <div id="structureInfoCard" class="coord-pick-card structure-info-card" hidden>
+    <div class="coord-pick-head">
+      <span id="structureInfoTitle">Công trình</span>
+      <button type="button" id="structureInfoCloseBtn" class="flow3d-close-btn" title="Đóng" aria-label="Đóng">×</button>
+    </div>
+    <dl id="structureInfoBody" class="coord-pick-dl structure-info-dl"></dl>
+  </div>
+
+  <div id="flow3dPanel" class="flow3d-panel" hidden>
+    <div class="flow3d-panel-head">
+      <span id="flow3dPanelTitle">Mặt cắt · mực nước</span>
+      <button type="button" id="flow3dCloseBtn" class="flow3d-close-btn" title="Tắt biểu đồ" aria-label="Tắt biểu đồ">×</button>
+    </div>
+    <canvas id="flow3dChart"></canvas>
+    <canvas id="flow3dQChart" hidden></canvas>
+    <div class="flow3d-time-row">
+      <button type="button" id="flow3dPlayBtn">Phát</button>
+      <input id="flow3dTime" type="range" min="0" max="167" value="0" />
+      <div id="flow3dTimeLabel">Giờ —</div>
+      <div id="flow3dRainLabel"></div>
+    </div>
+  </div>
+
+  <div id="flowRunPanel" class="flow-run-panel" hidden>
+    <div class="flow3d-panel-head">
+      <span>Dòng chảy 3D · Mưa lưu vực</span>
+      <button type="button" id="flowRunCloseBtn" class="flow3d-close-btn" title="Tắt mô phỏng" aria-label="Tắt mô phỏng">×</button>
+    </div>
+    <div class="flow3d-time-row">
+      <button type="button" id="flowRunPlayBtn">Phát</button>
+      <input id="flowRunTime" type="range" min="0" max="767" value="0" step="1" />
+    </div>
+    <div class="flow-run-meta">
+      <span id="flowRunTimeLabel">Giờ —</span>
+      <span id="flowRunRainLabel">Mưa —</span>
+      <span id="flowRunHLabel">H — m</span>
+    </div>
+    <div class="flow-run-toggles">
+      <label><input type="checkbox" id="flowRunShowRain" checked /> Hạt mưa</label>
+      <label><input type="checkbox" id="flowRunShowFlow" checked /> Dòng chảy</label>
+    </div>
+  </div>
+
+  <div id="rrParamsModal" hidden>
+    <div class="sv-manning-card rr-params-card" role="dialog" aria-modal="true" aria-labelledby="rrParamsTitle">
+      <h1 id="rrParamsTitle">Mô phỏng mưa-dòng chảy</h1>
+      <p class="sv-manning-hint">TANK Sugawara · thông số bên trái, đường quá trình Q (m³/s) bên phải</p>
+      <div class="rr-params-layout">
+        <div id="rrParamsBody" class="rr-params-body"></div>
+        <div class="rr-hydro-panel">
+          <div class="rr-hydro-head">
+            <span>Đường quá trình lưu lượng</span>
+            <span id="rrHydroNse" class="rr-hydro-nse">NSE —</span>
+            <span class="rr-hydro-legend">
+              <span><i class="rr-hydro-swatch is-sim"></i> Tính toán</span>
+              <span><i class="rr-hydro-swatch is-obs"></i> Thực đo</span>
+            </span>
+          </div>
+          <div class="rr-hydro-canvas-wrap">
+            <canvas id="rrHydroChart"></canvas>
+          </div>
+          <p id="rrHydroMeta" class="rr-hydro-meta"></p>
+        </div>
+      </div>
+      <div id="rrParamsError" class="sv-manning-error" hidden></div>
+      <div class="sv-manning-actions">
+        <button type="button" id="rrParamsCancel">Đóng</button>
+        <button type="button" id="rrParamsInput">Dữ liệu đầu vào</button>
+        <button type="button" id="rrParamsSave">Lưu thông số</button>
+        <button type="button" id="rrParamsCalibrate">Hiệu chỉnh</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="namParamsModal" hidden>
+    <div class="sv-manning-card rr-params-card" role="dialog" aria-modal="true" aria-labelledby="namParamsTitle">
+      <h1 id="namParamsTitle">Mô phỏng mưa-dòng chảy NAM</h1>
+      <p class="sv-manning-hint">MIKE NAM · Rainfall-Runoff</p>
+      <div class="rr-params-layout">
+        <div id="namParamsBody" class="rr-params-body"></div>
+        <div class="rr-hydro-panel">
+          <div class="rr-hydro-head">
+            <span>Mưa và đường quá trình lưu lượng</span>
+            <span id="namHydroNse" class="rr-hydro-nse">NSE —</span>
+            <span class="rr-hydro-legend">
+              <span><i class="rr-hydro-swatch is-rain"></i> Mưa</span>
+              <span><i class="rr-hydro-swatch is-sim"></i> Tính toán</span>
+              <span><i class="rr-hydro-swatch is-obs"></i> Thực đo</span>
+            </span>
+          </div>
+          <div class="rr-hydro-canvas-wrap">
+            <canvas id="namHydroChart"></canvas>
+          </div>
+          <p id="namHydroMeta" class="rr-hydro-meta"></p>
+        </div>
+      </div>
+      <div id="namParamsError" class="sv-manning-error" hidden></div>
+      <div class="sv-manning-actions">
+        <button type="button" id="namParamsCancel">Đóng</button>
+        <button type="button" id="namParamsInput">Dữ liệu đầu vào</button>
+        <button type="button" id="namParamsSave">Lưu thông số</button>
+        <button type="button" id="namParamsCalibrate">Hiệu chỉnh</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="rrInputModal" hidden>
+    <div class="sv-manning-card rr-input-card" role="dialog" aria-modal="true" aria-labelledby="rrInputTitle">
+      <h1 id="rrInputTitle">Dữ liệu đầu vào</h1>
+      <p class="sv-manning-hint">Mưa, PET và Q thực đo theo giờ · lưu vào data_flood</p>
+      <div class="sv-manning-fill">
+        <label>Từ giờ <input id="rrInputFrom" type="number" step="1" /></label>
+        <label>Đến giờ <input id="rrInputTo" type="number" step="1" /></label>
+        <label>Mưa (mm) <input id="rrInputFillRain" type="number" min="0" step="0.1" /></label>
+        <label>PET (mm) <input id="rrInputFillPet" type="number" min="0" step="0.1" /></label>
+        <button type="button" id="rrInputFillBtn">Áp dụng</button>
+        <button type="button" id="rrInputAddBtn">Thêm dòng</button>
+      </div>
+      <div class="sv-manning-table-wrap rr-input-table-wrap">
+        <table class="sv-manning-table">
+          <thead>
+            <tr>
+              <th>Giờ</th>
+              <th>Thời điểm</th>
+              <th>Mưa (mm)</th>
+              <th>PET (mm)</th>
+              <th>Q thực đo (m³/s)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="rrInputBody"></tbody>
+        </table>
+      </div>
+      <div id="rrInputError" class="sv-manning-error" hidden></div>
+      <div class="sv-manning-actions">
+        <button type="button" id="rrInputCancel">Đóng</button>
+        <button type="button" id="rrInputSave">Lưu dữ liệu</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="svManningModal" hidden>
+    <div class="sv-manning-card" role="dialog" aria-modal="true" aria-labelledby="svManningTitle">
+      <h1 id="svManningTitle">Hệ số nhám Manning n</h1>
+      <p class="sv-manning-hint" id="svManningHint">Khoảng XS · Δt xuất · CFL · Δt thủy lực</p>
+      <div class="sv-solver-row" role="radiogroup" aria-label="Chọn mô hình 1D">
+        <label{% if hydro1d_force_mike %} hidden{% endif %}>
+          <input type="radio" name="svSolver" id="svSolverLocal" value="saint-venant"{% if not hydro1d_force_mike %} checked{% endif %} />
+          Saint-venant
+        </label>
+        <label>
+          <input type="radio" name="svSolver" id="svSolverMike" value="saint-venant-1d"{% if hydro1d_force_mike %} checked{% endif %} />
+          Saint-venant-1D
+        </label>
+      </div>
+      <div class="sv-manning-fill sv-manning-fill-params">
+        <label>Khoảng XS (m) <input id="svXsSpacing" type="number" min="50" max="10000" step="50" value="1500" /></label>
+        <label>Δt xuất (giờ) <input id="svDtHours" type="number" min="0.05" max="24" step="0.05" value="1" /></label>
+        <label>CFL <input id="svCfl" type="number" min="0.05" max="10" step="0.05" value="1" /></label>
+        <label>Δt thủy lực (s) <input id="svDtHydro" type="number" min="1" max="3600" step="1" value="60" /></label>
+      </div>
+      <div id="svMikeParams" class="sv-manning-fill sv-manning-fill-mike">
+        <label>θ Abbott <input id="svTheta" type="number" min="0.5" max="1" step="0.05" value="1" /></label>
+        <label>Picard <input id="svPicard" type="number" min="1" max="10" step="1" value="3" /></label>
+        <label>Đối lưu <input id="svConvective" type="number" min="0" max="1" step="0.05" value="0.15" /></label>
+        <label>Trộn Manning <input id="svManningBlend" type="number" min="0" max="1" step="0.05" value="0.25" /></label>
+        <label>Q relax <input id="svQRelax" type="number" min="0.1" max="1" step="0.05" value="0.35" /></label>
+      </div>
+      <div class="sv-manning-fill sv-manning-fill-range">
+        <label>Sông
+          <select id="svManningReach"></select>
+        </label>
+        <label>Từ XS <input id="svManningFrom" type="number" min="1" step="1" /></label>
+        <label>Đến XS <input id="svManningTo" type="number" min="1" step="1" /></label>
+        <label>n <input id="svManningFillN" type="number" min="0.001" max="0.2" step="0.001" value="0.030" /></label>
+        <button type="button" id="svManningFillBtn">Áp dụng</button>
+      </div>
+      <div class="sv-manning-table-wrap">
+        <table class="sv-manning-table">
+          <thead>
+            <tr><th>Sông</th><th>Mã</th><th>XS</th><th>km</th><th>Tọa độ X</th><th>Tọa độ Y</th><th>n</th></tr>
+          </thead>
+          <tbody id="svManningBody"></tbody>
+        </table>
+      </div>
+      <div id="svManningError" class="sv-manning-error" hidden></div>
+      <div class="sv-manning-actions">
+        <button type="button" id="svManningCancel">Đóng</button>
+        <button type="button" id="svManningInput">Dữ liệu đầu vào</button>
+        <button type="button" id="svManningFromDem">Hệ số nhám từ DEM</button>
+        <button type="button" id="svManningSave">Lưu thông số</button>
+        <button type="button" id="svManningEval">Đánh giá</button>
+        <button type="button" id="svManningCalibrate">Hiệu chỉnh</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="svEvalModal" hidden>
+    <div class="sv-manning-card sv-eval-card" role="dialog" aria-modal="true" aria-labelledby="svEvalTitle">
+      <h1 id="svEvalTitle">Đánh giá mặt cắt</h1>
+      <p class="sv-manning-hint">Chọn sông chính hoặc sông nhánh, rồi mặt cắt để xem đường quá trình Q/H</p>
+      <div class="sv-manning-fill sv-eval-toolbar">
+        <label>Sông
+          <select id="svEvalReach"></select>
+        </label>
+        <label>Mặt cắt
+          <select id="svEvalXs"></select>
+        </label>
+        <span class="sv-eval-kind" role="radiogroup" aria-label="Đại lượng">
+          <label><input type="radio" name="svEvalKind" value="q" checked />Q (m³/s)</label>
+          <label><input type="radio" name="svEvalKind" value="h" />H (m)</label>
+        </span>
+        <button type="button" id="svEvalLoad">Load file...</button>
+        <input type="file" id="svEvalObsFile" accept=".csv,text/csv,text/plain" hidden />
+        <label id="svEvalObsColWrap" hidden>Cột thực đo
+          <select id="svEvalObsCol"></select>
+        </label>
+      </div>
+      <div class="rr-hydro-head sv-eval-head">
+        <span id="svEvalNse" class="rr-hydro-nse">NSE —</span>
+        <span class="rr-hydro-legend">
+          <span><i class="rr-hydro-swatch is-sim"></i> Tính toán</span>
+          <span><i class="rr-hydro-swatch is-obs"></i> Thực đo</span>
+        </span>
+      </div>
+      <div class="rr-hydro-canvas-wrap sv-eval-chart-wrap">
+        <canvas id="svEvalChart"></canvas>
+      </div>
+      <p id="svEvalMeta" class="rr-hydro-meta"></p>
+      <div id="svEvalError" class="sv-manning-error" hidden></div>
+      <div class="sv-manning-actions">
+        <button type="button" id="svEvalClose">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="svInputModal" hidden>
+    <div class="sv-manning-card rr-input-card sv-input-card" role="dialog" aria-modal="true" aria-labelledby="svInputTitle">
+      <h1 id="svInputTitle">Dữ liệu đầu vào</h1>
+      <p class="sv-manning-hint">Q biên thượng lưu, H hạ lưu sông chính và H hạ lưu nhánh thoát</p>
+      <div class="sv-manning-fill">
+        <label>Từ giờ <input id="svInputFrom" type="number" step="1" /></label>
+        <label>Đến giờ <input id="svInputTo" type="number" step="1" /></label>
+        <label>Q (m³/s) <input id="svInputFillQ" type="number" min="0" step="0.1" /></label>
+        <label>H hạ lưu (m) <input id="svInputFillH" type="number" step="0.01" /></label>
+        <label>H hạ lưu nhánh (m) <input id="svInputFillHna1" type="number" step="0.01" /></label>
+        <button type="button" id="svInputFillBtn">Áp dụng</button>
+        <button type="button" id="svInputAddBtn">Thêm dòng</button>
+      </div>
+      <div class="sv-manning-table-wrap rr-input-table-wrap">
+        <table class="sv-manning-table">
+          <thead>
+            <tr>
+              <th>Giờ</th>
+              <th>Thời điểm</th>
+              <th>Q thượng lưu (m³/s)</th>
+              <th>H hạ lưu sông chính (m)</th>
+              <th>H hạ lưu nhánh thoát (m)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="svInputBody"></tbody>
+        </table>
+      </div>
+      <div id="svInputError" class="sv-manning-error" hidden></div>
+      <div class="sv-manning-actions">
+        <button type="button" id="svInputCancel">Đóng</button>
+        <button type="button" id="svInputSave">Lưu dữ liệu</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="boundaryStationsModal" hidden>
+    <div class="sv-manning-card rr-input-card boundary-stations-card" role="dialog" aria-modal="true" aria-labelledby="boundaryStationsTitle">
+      <h1 id="boundaryStationsTitle">Khai báo biên đầu vào</h1>
+      <p class="sv-manning-hint">Khai báo điểm biên Q/H theo sông chính và sông nhánh (tọa độ + đường dẫn chuỗi số liệu)</p>
+      <div class="sv-manning-fill boundary-stations-toolbar">
+        <label>Lọc sông
+          <select id="boundaryStationsReachFilter">
+            <option value="">Tất cả</option>
+            <option value="main">Sông chính</option>
+            <option value="trib">Sông nhánh</option>
+            <option value="basin">Lưu vực</option>
+          </select>
+        </label>
+        <label>Sông
+          <select id="boundaryStationsReach"></select>
+        </label>
+        <button type="button" id="boundaryStationsAddBtn">Thêm điểm</button>
+        <button type="button" id="boundaryStationsResetBtn">Khôi phục mặc định</button>
+      </div>
+      <div class="sv-manning-table-wrap rr-input-table-wrap">
+        <table class="sv-manning-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Tên</th>
+              <th>Loại</th>
+              <th>Sông</th>
+              <th>Kinh độ</th>
+              <th>Vĩ độ</th>
+              <th>km</th>
+              <th>Đường dẫn</th>
+              <th>Cột</th>
+              <th>Đơn vị</th>
+              <th>Có file</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="boundaryStationsBody"></tbody>
+        </table>
+      </div>
+      <div id="boundaryStationsError" class="sv-manning-error" hidden></div>
+      <div class="sv-manning-actions">
+        <button type="button" id="boundaryStationsCancel">Đóng</button>
+        <button type="button" id="boundaryStationsSave">Lưu khai báo</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="constructionsModal" hidden>
+    <div class="sv-manning-card rr-input-card constructions-card" role="dialog" aria-modal="true" aria-labelledby="constructionsTitle">
+      <h1 id="constructionsTitle">Khai báo công trình</h1>
+      <div class="sv-manning-fill constructions-toolbar">
+        <label>Lọc loại
+          <select id="constructionsTypeFilter">
+            <option value="">Tất cả</option>
+            <option value="dike">Đê / Tràn bãi</option>
+            <option value="weir">Đập / Tràn</option>
+            <option value="reservoir">Đập / Hồ chứa</option>
+            <option value="gate">Cống điều tiết</option>
+            <option value="culvert">Cống hộp</option>
+            <option value="pump">Trạm bơm</option>
+          </select>
+        </label>
+        <label>Sông / nhánh
+          <select id="constructionsReach"></select>
+        </label>
+        <button type="button" id="constructionsAddBtn">Thêm công trình</button>
+        <button type="button" id="constructionsResetBtn">Mặc định</button>
+      </div>
+      <div id="constructionsBody" class="constructions-list"></div>
+      <div id="constructionsError" class="sv-manning-error" hidden></div>
+      <div class="sv-manning-actions">
+        <button type="button" id="constructionsCancel">Đóng</button>
+        <button type="button" id="constructionsSave">Lưu công trình</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="boundaryBrowseModal" hidden>
+    <div class="sv-manning-card boundary-browse-card" role="dialog" aria-modal="true" aria-labelledby="boundaryBrowseTitle">
+      <h1 id="boundaryBrowseTitle">Chọn file CSV</h1>
+      <p class="sv-manning-hint">Duyệt thư mục, chọn file rồi chọn trường dữ liệu</p>
+      <div class="boundary-browse-path">
+        <button type="button" id="boundaryBrowseUp" title="Thư mục trên">↑</button>
+        <span id="boundaryBrowseCwd">/</span>
+      </div>
+      <div id="boundaryBrowseList" class="boundary-browse-list"></div>
+      <div id="boundaryBrowseColumnsWrap" class="boundary-browse-columns-wrap" hidden>
+        <p class="boundary-browse-columns-title">Trường dữ liệu · <span id="boundaryBrowseFileName"></span></p>
+        <div id="boundaryBrowseColumns" class="boundary-browse-columns"></div>
+      </div>
+      <div id="boundaryBrowseError" class="sv-manning-error" hidden></div>
+      <div class="sv-manning-actions">
+        <button type="button" id="boundaryBrowseCancel">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="hydro1dProgressModal" hidden>
+    <div class="hydro1d-progress-card" role="dialog" aria-modal="true" aria-labelledby="hydro1dProgressTitle">
+      <h1 id="hydro1dProgressTitle">Model 1D</h1>
+      <p id="hydro1dProgressStatus" class="hydro1d-progress-status is-running">Đang chạy…</p>
+      <p id="hydro1dProgressMeta" class="hydro1d-progress-meta"></p>
+      <pre id="hydro1dProgressLog" class="hydro1d-progress-log"></pre>
+      <div class="sv-manning-actions">
+        <button type="button" id="hydro1dProgressClose" disabled>Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="flood3dProgressModal" hidden>
+    <div class="fm-progress-card" role="dialog" aria-modal="true">
+      <h1 id="flood3dProgressTitle">Mô hình ngập lụt</h1>
+      <p id="flood3dProgressStatus" class="fm-progress-status is-running">Đang tính…</p>
+      <p id="flood3dProgressMeta" class="fm-progress-meta"></p>
+      <div class="flood3d-progress-bar"><span id="flood3dProgressBar"></span></div>
+      <pre id="flood3dProgressLog" class="fm-progress-log"></pre>
+      <div class="fm-progress-actions">
+        <button type="button" id="flood3dProgressClose" disabled>Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.FLOOD_BASE = document.body.getAttribute("data-flood-base") || "";
+    window.FLOOD_HOME_2D = document.body.getAttribute("data-flood-home-2d") || "";
+    window.HYDRO1D_FORCE_MIKE = document.body.getAttribute("data-hydro1d-force-mike") === "1";
+    window.pickWaterSource = function () {
+      if (window.HYDRO1D_FORCE_MIKE) return "saint-venant-1d";
+      var el = document.querySelector('input[name="svSolver"]:checked');
+      return (el && el.value === "saint-venant-1d") ? "saint-venant-1d" : "saint-venant";
+    };
+    window.floodUrl = function (path) {
+      var base = window.FLOOD_BASE || "";
+      if (!path) return base || "/";
+      if (/^https?:\/\//i.test(path)) return path;
+      if (base && path.indexOf(base + "/") === 0) return path;
+      return base + (path.charAt(0) === "/" ? path : "/" + path);
+    };
+  </script>
+  <script src="{{ url_for(fm_static, filename='vendors/leaflet/leaflet.js') }}"></script>
+  <script src="{{ url_for(fm_static, filename='vendors/three/three.min.js') }}"></script>
+  <script src="{{ url_for(fm_static, filename='vendors/three/OrbitControls.js') }}"></script>
+  <script src="{{ url_for(fm_static, filename='dem-3d.js') }}?v=24"></script>
+  <script src="{{ url_for(fm_static, filename='flow-3d.js') }}?v=116"></script>
+  <script src="{{ url_for(fm_static, filename='flow-run.js') }}?v=42"></script>
+  <script src="{{ url_for(fm_static, filename='flood-3d.js') }}?v=21"></script>
+  <script src="{{ url_for(fm_static, filename='app.js') }}?v=23"></script>
+</body>
+</html>
